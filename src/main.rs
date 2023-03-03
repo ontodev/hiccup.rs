@@ -1,6 +1,70 @@
+use serde_json::json;
 use serde_json::Value;
 
-fn render(element: Value, depth: usize) -> String {
+fn insert_href(element: &Value, href: &str, depth: usize) -> Value {
+    let mut element_pointer = 0;
+    let render_element = element.clone();
+    let render_element = match render_element {
+        Value::Array(x) => x,
+        _ => panic!("Element is not a list: {:?}", element),
+    };
+    if render_element.is_empty() {
+        panic!("Element is an empty list")
+    }
+
+    let tag = render_element[0].clone();
+    element_pointer += 1;
+    let tag_string = match tag {
+        Value::String(x) => x,
+        _ => panic!(
+            "Tag '{tag}' at loc {depth} is not a string",
+            tag = tag,
+            depth = depth
+        ),
+    };
+
+    let mut output = vec![json!(tag_string.clone())];
+
+    if render_element.len() - element_pointer > 0 {
+        match render_element[element_pointer].clone() {
+            Value::Object(mut attr) => {
+                element_pointer += 1;
+                if tag_string.eq("a") & !attr.contains_key("href") & attr.contains_key("resource") {
+                    attr.insert(
+                        String::from("href"),
+                        json!(format!("?id={}", attr["resource"].as_str().unwrap())),
+                    );
+                }
+                output.push(Value::Object(attr.clone()));
+            }
+            _ => {}
+        }
+    }
+
+    if render_element.len() - element_pointer > 0 {
+        for i in element_pointer..render_element.len() {
+            let child = render_element[i].clone();
+            match child {
+                Value::String(x) => {
+                    output.push(json!(x));
+                }
+                Value::Array(x) => {
+                    output.push(insert_href(&json!(x), href, depth + 1));
+                }
+                _ => panic!(
+                    "Bad type for '{tag}' child '{child}' at loc {depth}",
+                    tag = tag_string,
+                    child = child,
+                    depth = depth + 1
+                ),
+            }
+        }
+    }
+
+    Value::Array(output)
+}
+
+fn render(element: &Value, depth: usize) -> String {
     let render_element = element.clone();
     let indent = "  ".repeat(depth);
     let mut element_pointer = 0;
@@ -56,7 +120,7 @@ fn render(element: Value, depth: usize) -> String {
                     output = format!("{}{}", output, s.as_str());
                 }
                 Value::Array(_v) => {
-                    output = format!("{}\n{}", output, render(child.clone(), depth + 1));
+                    output = format!("{}\n{}", output, render(&child.clone(), depth + 1));
                     spacing = format!("\n{}", indent);
                 }
                 _ => panic!(
@@ -73,11 +137,15 @@ fn render(element: Value, depth: usize) -> String {
 }
 
 fn main() {
-    let data = r#"["body", ["div", {"id": "myDiv"}, ["h1", {"class": "header"}, "Hello World!"]]]"#;
+    //let data = r#"["body", ["div", {"id": "myDiv"}, ["h1", {"class": "header"}, "Hello World!"]]]"#;
+    let data = r#"["body", ["div", {"id": "myDiv"}, ["h1", {"class": "header"}, ["a", {"resource":"iri:chris"}, "Hello World!"]]]]"#;
 
     let hiccup: Value = serde_json::from_str(data).unwrap();
 
-    let html = render(hiccup, 0);
+    let html = render(&hiccup, 0);
+
+    let html2 = insert_href(&hiccup, "iri:chris", 0);
 
     println!("{}", html);
+    println!("{}", html2);
 }
