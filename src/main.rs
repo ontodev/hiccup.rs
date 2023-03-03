@@ -1,6 +1,13 @@
 use serde_json::json;
 use serde_json::Value;
 
+/// Add 'href' attributes to each 'a' tag that has a 'resource', but not an 'href'.
+/// Return the updated list.
+///
+/// * param `element` - hiccup-style list to add 'href' attributes to
+/// * param `href` - target 'resource' for which href attributes are added
+/// * param `depth` - list depth of current element
+/// * return - copy of element with added 'href'
 fn insert_href(element: &Value, href: &str, depth: usize) -> Value {
     let mut element_pointer = 0;
     let render_element = element.clone();
@@ -64,6 +71,10 @@ fn insert_href(element: &Value, href: &str, depth: usize) -> Value {
     Value::Array(output)
 }
 
+/// Render hiccup-style HTML vector as HTML.
+/// * param `element` - hiccup-style list
+/// * param `depth` - list depth of current element
+/// * return - HTML string
 fn render(element: &Value, depth: usize) -> String {
     let render_element = element.clone();
     let indent = "  ".repeat(depth);
@@ -138,14 +149,13 @@ fn render(element: &Value, depth: usize) -> String {
 
 fn main() {
     //let data = r#"["body", ["div", {"id": "myDiv"}, ["h1", {"class": "header"}, "Hello World!"]]]"#;
-    let data = r#"["body", ["div", {"id": "myDiv"}, ["h1", {"class": "header"}, ["a", {"resource":"iri:chris"}, "Hello World!"]]]]"#;
+    let data = r#"["body", ["div", {"id": "myDiv"}, ["h1", {"class": "header"}, ["a", {"resource":"iri:example"}, "Hello World!"]]]]"#;
 
     let hiccup: Value = serde_json::from_str(data).unwrap();
 
     let html = render(&hiccup, 0);
-
-    let html2 = insert_href(&hiccup, "iri:chris", 0);
+    let html_2 = insert_href(&hiccup, "iri:example", 0);
 
     println!("{}", html);
-    println!("{}", html2);
+    println!("{}", html_2);
 }
