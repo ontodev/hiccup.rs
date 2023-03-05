@@ -5,10 +5,11 @@ use serde_json::Value;
 /// Return the updated list.
 ///
 /// * param `element` - hiccup-style list to add 'href' attributes to
-/// * param `href` - target 'resource' for which href attributes are added
+/// * param `resource` - target 'resource' for which href attributes are added
+/// * param `pattern` - pattern for href where the substring "{curie}" is replaced with the target resource
 /// * param `depth` - list depth of current element
 /// * return - copy of element with added 'href'
-fn insert_href(element: &Value, href: &str, depth: usize) -> Value {
+fn insert_href(element: &Value, resource: &str, pattern: &str, depth: usize) -> Value {
     let mut element_pointer = 0;
     let render_element = element.clone();
     let render_element = match render_element {
@@ -39,7 +40,7 @@ fn insert_href(element: &Value, href: &str, depth: usize) -> Value {
                 if tag_string.eq("a") & !attr.contains_key("href") & attr.contains_key("resource") {
                     attr.insert(
                         String::from("href"),
-                        json!(format!("?id={}", attr["resource"].as_str().unwrap())),
+                        json!(pattern.replace("{curie}", attr["resource"].as_str().unwrap())),
                     );
                 }
                 output.push(Value::Object(attr.clone()));
@@ -56,7 +57,7 @@ fn insert_href(element: &Value, href: &str, depth: usize) -> Value {
                     output.push(json!(x));
                 }
                 Value::Array(x) => {
-                    output.push(insert_href(&json!(x), href, depth + 1));
+                    output.push(insert_href(&json!(x), resource, pattern, depth + 1));
                 }
                 _ => panic!(
                     "Bad type for '{tag}' child '{child}' at loc {depth}",
@@ -154,7 +155,7 @@ fn main() {
     let hiccup: Value = serde_json::from_str(data).unwrap();
 
     let html = render(&hiccup, 0);
-    let html_2 = insert_href(&hiccup, "iri:example", 0);
+    let html_2 = insert_href(&hiccup, "iri:example", "?id={curie}", 0);
 
     println!("{}", html);
     println!("{}", html_2);
