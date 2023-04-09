@@ -8,8 +8,8 @@ fn main() {
 
     let hiccup: Value = serde_json::from_str(data).unwrap();
 
-    let html = hiccup::render(&hiccup, 0);
-    let html_2 = hiccup::insert_href(&hiccup, "?id={curie}", 0);
+    let html = hiccup::render(&hiccup);
+    let html_2 = hiccup::insert_href(&hiccup, "?id={curie}");
 
     println!("{}", html);
     println!("{}", html_2);
