@@ -5,11 +5,20 @@ use serde_json::Value;
 /// Return the updated list.
 ///
 /// * param `element` - hiccup-style list to add 'href' attributes to
-/// * param `resource` - target 'resource' for which href attributes are added
-/// * param `pattern` - pattern for href where the substring "{curie}" is replaced with the target resource
+/// * param `href` - pattern for href where the substring "{curie}" is replaced with resource
+/// * return - copy of element with added 'href'
+pub fn insert_href(element: &Value, href: &str) -> Value {
+    insert_href_by_depth(element, href, 0)
+}
+
+/// Add 'href' attributes to each 'a' tag that has a 'resource', but not an 'href'.
+/// Return the updated list.
+///
+/// * param `element` - hiccup-style list to add 'href' attributes to
+/// * param `href` - pattern for href where the substring "{curie}" is replaced with resource
 /// * param `depth` - list depth of current element
 /// * return - copy of element with added 'href'
-pub fn insert_href(element: &Value, resource: &str, pattern: &str, depth: usize) -> Value {
+pub fn insert_href_by_depth(element: &Value, href: &str, depth: usize) -> Value {
     let mut element_pointer = 0;
     let render_element = element.clone();
     let render_element = match render_element {
@@ -40,7 +49,7 @@ pub fn insert_href(element: &Value, resource: &str, pattern: &str, depth: usize)
                 if tag_string.eq("a") & !attr.contains_key("href") & attr.contains_key("resource") {
                     attr.insert(
                         String::from("href"),
-                        json!(pattern.replace("{curie}", attr["resource"].as_str().unwrap())),
+                        json!(href.replace("{curie}", attr["resource"].as_str().unwrap())),
                     );
                 }
                 output.push(Value::Object(attr.clone()));
@@ -57,7 +66,7 @@ pub fn insert_href(element: &Value, resource: &str, pattern: &str, depth: usize)
                     output.push(json!(x));
                 }
                 Value::Array(x) => {
-                    output.push(insert_href(&json!(x), resource, pattern, depth + 1));
+                    output.push(insert_href_by_depth(&json!(x), href, depth + 1));
                 }
                 _ => panic!(
                     "Bad type for '{tag}' child '{child}' at loc {depth}",
@@ -74,9 +83,16 @@ pub fn insert_href(element: &Value, resource: &str, pattern: &str, depth: usize)
 
 /// Render hiccup-style HTML vector as HTML.
 /// * param `element` - hiccup-style list
+/// * return - HTML string
+pub fn render(element: &Value) -> String {
+    render_by_depth(element, 0)
+}
+
+/// Render hiccup-style HTML vector as HTML.
+/// * param `element` - hiccup-style list
 /// * param `depth` - list depth of current element
 /// * return - HTML string
-pub fn render(element: &Value, depth: usize) -> String {
+pub fn render_by_depth(element: &Value, depth: usize) -> String {
     let render_element = element.clone();
     let indent = "  ".repeat(depth);
     let mut element_pointer = 0;
@@ -132,7 +148,7 @@ pub fn render(element: &Value, depth: usize) -> String {
                     output = format!("{}{}", output, s.as_str());
                 }
                 Value::Array(_v) => {
-                    output = format!("{}\n{}", output, render(&child.clone(), depth + 1));
+                    output = format!("{}\n{}", output, render_by_depth(&child.clone(), depth + 1));
                     spacing = format!("\n{}", indent);
                 }
                 _ => panic!(
