@@ -142,7 +142,7 @@ pub fn render_by_depth(element: &Value, depth: usize) -> Result<String, String> 
                             output,
                             key,
                             match value {
-                                Value::String(s) => s.as_str().to_string(),
+                                Value::String(s) => s,
                                 Value::Number(n) => n.to_string(),
                                 Value::Bool(b) => b.to_string(),
                                 Value::Null => value.to_string(),
