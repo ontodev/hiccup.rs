@@ -7,7 +7,7 @@ use serde_json::Value;
 /// * param `element` - hiccup-style list to add 'href' attributes to
 /// * param `href` - pattern for href where the substring "{curie}" is replaced with resource
 /// * return - copy of element with added 'href'
-pub fn insert_href(element: &Value, href: &str) -> Value {
+pub fn insert_href(element: &Value, href: &str) -> Result<Value, String> {
     insert_href_by_depth(element, href, 0)
 }
 
@@ -18,26 +18,28 @@ pub fn insert_href(element: &Value, href: &str) -> Value {
 /// * param `href` - pattern for href where the substring "{curie}" is replaced with resource
 /// * param `depth` - list depth of current element
 /// * return - copy of element with added 'href'
-pub fn insert_href_by_depth(element: &Value, href: &str, depth: usize) -> Value {
+pub fn insert_href_by_depth(element: &Value, href: &str, depth: usize) -> Result<Value, String> {
     let mut element_pointer = 0;
     let render_element = element.clone();
     let render_element = match render_element {
         Value::Array(x) => x,
-        _ => panic!("Element is not a list: {:?}", element),
+        _ => return Err(format!("Element is not a list: {:?}", element)),
     };
     if render_element.is_empty() {
-        panic!("Element is an empty list")
+        return Err("Element is an empty list".to_string());
     }
 
     let tag = render_element[0].clone();
     element_pointer += 1;
     let tag_string = match tag {
         Value::String(x) => x,
-        _ => panic!(
-            "Tag '{tag}' at loc {depth} is not a string",
-            tag = tag,
-            depth = depth
-        ),
+        _ => {
+            return Err(format!(
+                "Tag '{tag}' at loc {depth} is not a string",
+                tag = tag,
+                depth = depth
+            ))
+        }
     };
 
     let mut output = vec![json!(tag_string.clone())];
@@ -49,7 +51,12 @@ pub fn insert_href_by_depth(element: &Value, href: &str, depth: usize) -> Value 
                 if tag_string.eq("a") & !attr.contains_key("href") & attr.contains_key("resource") {
                     attr.insert(
                         String::from("href"),
-                        json!(href.replace("{curie}", attr["resource"].as_str().unwrap())),
+                        json!(href.replace("{curie}", {
+                            match attr["resource"].as_str() {
+                                Some(r) => r,
+                                None => return Err(format!("No str 'resource' in {:?}", attr)),
+                            }
+                        })),
                     );
                 }
                 output.push(Value::Object(attr.clone()));
@@ -66,25 +73,27 @@ pub fn insert_href_by_depth(element: &Value, href: &str, depth: usize) -> Value 
                     output.push(json!(x));
                 }
                 Value::Array(x) => {
-                    output.push(insert_href_by_depth(&json!(x), href, depth + 1));
+                    output.push(insert_href_by_depth(&json!(x), href, depth + 1)?);
                 }
-                _ => panic!(
-                    "Bad type for '{tag}' child '{child}' at loc {depth}",
-                    tag = tag_string,
-                    child = child,
-                    depth = depth + 1
-                ),
+                _ => {
+                    return Err(format!(
+                        "Bad type for '{tag}' child '{child}' at loc {depth}",
+                        tag = tag_string,
+                        child = child,
+                        depth = depth + 1
+                    ))
+                }
             }
         }
     }
 
-    Value::Array(output)
+    Ok(Value::Array(output))
 }
 
 /// Render hiccup-style HTML vector as HTML.
 /// * param `element` - hiccup-style list
 /// * return - HTML string
-pub fn render(element: &Value) -> String {
+pub fn render(element: &Value) -> Result<String, String> {
     render_by_depth(element, 0)
 }
 
@@ -92,28 +101,30 @@ pub fn render(element: &Value) -> String {
 /// * param `element` - hiccup-style list
 /// * param `depth` - list depth of current element
 /// * return - HTML string
-pub fn render_by_depth(element: &Value, depth: usize) -> String {
+pub fn render_by_depth(element: &Value, depth: usize) -> Result<String, String> {
     let render_element = element.clone();
     let indent = "  ".repeat(depth);
     let mut element_pointer = 0;
 
     let render_element = match render_element {
         Value::Array(x) => x,
-        _ => panic!("Element is not a list: {:?}", element),
+        _ => return Err(format!("Element is not a list: {:?}", element)),
     };
     if render_element.is_empty() {
-        panic!("Element is an empty list")
+        return Err("Element is an empty list".to_string());
     }
 
     let tag = render_element[0].clone();
     element_pointer += 1;
     let tag_string = match tag {
         Value::String(x) => x,
-        _ => panic!(
-            "Tag '{tag}' at loc {depth} is not a string",
-            tag = tag,
-            depth = depth
-        ),
+        _ => {
+            return Err(format!(
+                "Tag '{tag}' at loc {depth} is not a string",
+                tag = tag,
+                depth = depth
+            ))
+        }
     };
 
     let mut output = format!("{}<{}", indent, tag_string);
@@ -126,7 +137,22 @@ pub fn render_by_depth(element: &Value, depth: usize) -> String {
                     if key.eq("checked") {
                         output = format!("{} {}", output, key);
                     } else {
-                        output = format!("{} {}=\"{}\"", output, key, value.as_str().unwrap());
+                        output = format!(
+                            "{} {}=\"{}\"",
+                            output,
+                            key,
+                            match value {
+                                Value::String(s) => s,
+                                Value::Number(n) => n.to_string(),
+                                Value::Bool(b) => b.to_string(),
+                                Value::Null => value.to_string(),
+                                _ =>
+                                    return Err(format!(
+                                        "Value '{}' is not a string, number, bool, or null value",
+                                        value
+                                    )),
+                            }
+                        );
                     }
                 }
             }
@@ -136,7 +162,7 @@ pub fn render_by_depth(element: &Value, depth: usize) -> String {
 
     if tag_string.eq("meta") | tag_string.eq("link") | tag_string.eq("path") {
         output = format!("{}/>", output);
-        return output;
+        return Ok(output);
     }
 
     output = format!("{}>", output);
@@ -148,18 +174,24 @@ pub fn render_by_depth(element: &Value, depth: usize) -> String {
                     output = format!("{}{}", output, s.as_str());
                 }
                 Value::Array(_v) => {
-                    output = format!("{}\n{}", output, render_by_depth(&child.clone(), depth + 1));
+                    output = format!(
+                        "{}\n{}",
+                        output,
+                        render_by_depth(&child.clone(), depth + 1)?
+                    );
                     spacing = format!("\n{}", indent);
                 }
-                _ => panic!(
-                    "Bad type for '{tag}' child '{child}' at loc {depth}",
-                    tag = tag_string,
-                    child = child,
-                    depth = depth + 1
-                ),
+                _ => {
+                    return Err(format!(
+                        "Bad type for '{tag}' child '{child}' at loc {depth}",
+                        tag = tag_string,
+                        child = child,
+                        depth = depth + 1
+                    ))
+                }
             }
         }
     }
     output = format!("{}{}</{}>", output, spacing, tag_string);
-    output
+    Ok(output)
 }
