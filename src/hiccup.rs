@@ -70,19 +70,12 @@ pub fn insert_href_by_depth(element: &Value, href: &str, depth: usize) -> Result
         for i in element_pointer..render_element.len() {
             let child = render_element[i].clone();
             match child {
-                Value::String(x) => {
-                    output.push(json!(x));
-                }
                 Value::Array(x) => {
-                    output.push(insert_href_by_depth(&json!(x), href, depth + 1)?);
+                    output
+                        .push(insert_href_by_depth(&json!(x), href, depth + 1).unwrap_or_default());
                 }
-                _ => {
-                    return Err(format!(
-                        "Bad type for '{tag}' child '{child}' at loc {depth}",
-                        tag = tag_string,
-                        child = child,
-                        depth = depth + 1
-                    ))
+                x => {
+                    output.push(x);
                 }
             }
         }
@@ -344,6 +337,15 @@ pub fn render_by_depth(element: &Value, depth: usize) -> Result<String, String> 
                 Value::String(s) => {
                     output = format!("{}{}", output, s.as_str());
                 }
+                Value::Number(n) => {
+                    output = format!("{}{}", output, n.to_string());
+                }
+                Value::Bool(b) => {
+                    output = format!("{}{}", output, b.to_string());
+                }
+                Value::Null => {
+                    output = format!("{}Null", output);
+                }
                 Value::Array(_v) => {
                     output = format!(
                         "{}\n{}",
@@ -352,9 +354,9 @@ pub fn render_by_depth(element: &Value, depth: usize) -> Result<String, String> 
                     );
                     spacing = format!("\n{}", indent);
                 }
-                _ => {
+                Value::Object(_) => {
                     return Err(format!(
-                        "Bad type for '{tag}' child '{child}' at loc {depth}",
+                        "Bad type Object for '{tag}' child '{child}' at loc {depth}",
                         tag = tag_string,
                         child = child,
                         depth = depth + 1
